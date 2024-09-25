@@ -1,0 +1,10 @@
+text.usetex: True                             # default to TeX interpreter of strings
+text.latex.preamble: \usepackage{amsmath}\usepackage{amssymb} # some useful TeX packages
+font.family:     serif                        # Roman like
+font.serif:      Computer Modern              # classic latex font
+font.size:       9                            # matching caption fontsize (\small)
+axes.labelsize:  9
+legend.fontsize: 9
+xtick.direction: in                           # axes ticks in to save space
+ytick.direction: in
+axes.axisbelow:  True                         # place grid underneath, otherwise it's messy
