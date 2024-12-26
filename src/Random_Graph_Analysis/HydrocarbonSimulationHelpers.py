@@ -196,8 +196,9 @@ def randHCnet_from_params(Nc, Nh, phh, p3=0, Lam=None, LoopLenDist=None):
 
 def randHCnet_GF(HCR,phh,p3,Lam=None,LoopDist=None,Rewire=False,tol=1e-8):
     """
-    Analysis of random hydrocarbon graphs using generating functions. As before, this model
-    includes the configuration model and Disjoint Loop Models.
+    Analysis of random hydrocarbon graphs using generating functions. To study the configuration
+    model leave the loop parameters at there default values (Lam=None, LoopDist=None). To account
+    for assortativity correction set Rewire=True. 
     Inputs:
         HCR = hydrogen to carbon ratio (Nc / Nh)
         phh = prob. H bonds to H
@@ -444,35 +445,59 @@ class DisjointLoop_GF:
         
         # loop model with rewire
         else:
-            # excess degree distribution
-            exDegDist = DegDist[1:]*np.arange(1,dmax)
+            # It is ultimately important to compute the probability that a stub from a node of degree j
+            # leads to a node of degree k, with entries
+            #   \hat{e}_{jk}/(\sum_{k'}\hat{e}_{jk'}), j,k>=1
+            # Formula
+            #   \hat{e}_{jk} = (G'(1)q_{j-1}q_{k-1} - 2\tilde{G}_z(1,1) q^L_{j-2}q^L_{k-2}) / \tilde{G}_x(1,1)
+            # the denominator can be ignored by normalization. So this is a matrix of two outer products with
+            # row sums normalized to 1.
+            
+            # indices of new matrix
+            jvals = np.arange(1,dmax)
+            # classical excess degree distribution for the first half of the formula
+            exDegDist = DegDist[1:]*jvals
             exDegDist/= sum(exDegDist)
-            # for loop edges
+            E_Mat  = DegDist.dot(np.arange(dmax)) * np.outer(exDegDist,exDegDist)             #G'(1) qj-1 * qk-1
+            # excess degree from loop edge for second half of the formula
             exDegL = DegDist[2:]*f(np.arange(2,dmax))
             exDegL/= sum(exDegL)
-            # regular edges
-            jvals = np.arange(1,dmax)
-            exDegR = np.tile(exDegDist,(dmax-1,1)).T * jvals
-            exDegR[1:,:] -= 2*np.tile(exDegL,(dmax-1,1)).T * f(jvals)
-            exDegR /= (jvals-2*f(jvals))
+            E_Mat[1:,1:] -= 2*DegDist[2:].dot(f(np.arange(2,dmax))) * np.outer(exDegL,exDegL) #-2G_z(1,1) q^Lj-2 q^Lk-2
+            # normalize row sum (col sum then transpose by symmetry)
+            E_Mat /= np.sum(E_Mat,axis=0)
+            E_Mat  = E_Mat.T
 
+            self.E_Mat = E_Mat # useful for other computations.
+
+            # now create generating functions with sum notation
             def PhiHL(He,x):
+                """
+                Size of a branch rooted by a loop node
+                """
                 return Phi1(x*exDegL.dot(He[1:]**np.arange(dmax-2)))
             
             def HE(x):
-                He = 1/2*np.ones(dmax-1)
-                # iteration in section 2.4
-                c = jvals*(1-f(jvals))/(jvals-2*f(jvals))
+                """
+                Vector H^E_k: size of a branch rooted by a regular node reached by a regular node of degree k=1,...,dmax
+                """
+                # values HE_k for k = 1,... (k indices given by jvals)
+                He = 1/2*np.ones_like(jvals)
+                # function for the prob. a node of degree j reached by a regular edge is in a loop
+                f1_vec = (jvals-2)*f(jvals)/(jvals-2*f(jvals))
+                # recursion for the value of HE
                 for _ in range(10000):
-                    aux1 = c*He**np.arange(dmax-1)
-                    aux2 = (1-c)*He**(np.arange(dmax-1)-2)*PhiHL(He,x)
-                    aux = x*((aux1+aux2)@exDegR)
+                    aux1 = (1-f1_vec)*He**np.arange(dmax-1)              # term with no loop neighbors
+                    aux2 = f1_vec*He**(np.arange(dmax-1)-2)*PhiHL(He,x)  # term with a loop neighbor
+                    aux  = x*(E_Mat@(aux1+aux2))                         # represent recurrence with matrix multiplication
                     if max(np.abs(aux-He)) < tol:
-                        break
+                        return aux # within tolerance, return newest value
                     He = aux
                 return He
             
             def H(x):
+                """
+                Size distribution of the component holding a random regular node.
+                """
                 He = HE(x)
                 PHL = PhiHL(He,x)
                 aux = (1-f(jvals))*He**jvals + f(jvals)*He**(jvals-2)*PHL
@@ -528,14 +553,60 @@ class DisjointLoop_GF:
             # fraction of edges that are regular edges
             jvals = np.arange(1,len(DD))
             c = sum((jvals-2*self.f(jvals))*DD[1:])/sum(jvals*DD[1:])
-
+            # matrix e_{jk} without rewiring
             E = c*np.outer(exDDR,exDDR)
             E[1:,1:] += (1-c)*np.outer(exDDL,exDDL)
 
             return (np.arange(len(exDD))@E@np.arange(len(exDD)) - Mean**2)/Var
         else:
             return 0
-
+    
+    # generalized function for the molloy-reed criterion, equal to 1 at the threshold for a giant component
+    def threshold_function(self):
+        """
+        Function for the existence of the giant component. This generalizes the Molloy-Reed criterion which can be written as the 
+        average excess degree taking value G_1'(1)=1. For all models this function is equal to 1 at the critical threshold. When 
+        the output is greater than 1 a giant component is present.
+        """
+        if self.LoopDist is None:
+            ### configuration model
+            return sum([pk*k*(k-1) for k,pk in enumerate(self.degree_distribution)]) / \
+                sum([pk*k for k,pk in enumerate(self.degree_distribution)])
+    
+        elif self.LoopDist is not None and not self.rewire:
+            ### disjoint loop model w/o assortativity correction
+            dmax  = len(self.degree_distribution)
+            kvals = np.arange(dmax)
+            # Partials for first moment
+            Gx = self.degree_distribution.dot(kvals-2*self.f(kvals))
+            Gz = self.degree_distribution.dot(self.f(kvals))
+            Gxx = self.degree_distribution.dot(kvals*(kvals-1)-(4*kvals-6)*self.f(kvals))
+            Gxz = self.degree_distribution.dot(self.f(kvals)*(kvals-2))
+            dphi0  = sum([phi_k*k for k,phi_k in enumerate(self.LoopDist)])
+            ddphi0 = sum([phi_k*k*(k-1) for k,phi_k in enumerate(self.LoopDist)])
+            # (G1*)'(1) = GE_x + GE_z Phi' GL_x
+            # GE = Gx(x,z) / Gx(1,1)
+            # GL = Gz(x) / Gz(1)
+            G1s1 = Gxx/Gx + Gxz/Gx*ddphi0/dphi0*Gxz/Gz
+            return G1s1
+            
+        else:
+            ### disjoint loop model w/ assortativity correction
+            dmax = len(self.E_Mat)+1
+            # first matrix perturbation from regular neighbors
+            kvals = np.arange(1,dmax)
+            f1_vec = (kvals-2)*self.f(kvals)/(kvals-2*self.f(kvals))
+            M1 = self.E_Mat * (kvals-1-2*f1_vec) #M1
+            # second matrix perturbation from regular neighbors reached by a loop node
+            exDDL = self.degree_distribution[2:]*self.f(np.arange(2,dmax))  # excess degree dist of nodes reached via a loop
+            exDDL/= sum(exDDL)
+            M2 = np.outer(self.E_Mat@f1_vec, exDDL*np.arange(dmax-2))   # collapse first sum using matrix mult. then make a matrix via outer product
+            # expected excess degree of a node reached by a loop
+            dphi1 = sum([phi_k*k*(k-1) for k,phi_k in enumerate(self.LoopDist)]) / \
+                    sum([phi_k*k for k,phi_k in enumerate(self.LoopDist)])
+            M = M1[1:,1:]+dphi1*M2[1:,:]
+            # largest eigenvalue, which is equal to 1 at the critical threshold
+            return max(np.linalg.eig(M)[0])
 
 
 
