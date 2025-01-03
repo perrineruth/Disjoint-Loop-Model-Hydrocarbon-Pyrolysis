@@ -85,33 +85,129 @@ These fits are performed using only $\rm C_4 H_{10}$ data while the remaining da
 
 ## 2. Random Graph Analysis With the Disjoint Loop Model
 
-Next, we include code for simulating hydrocarbon pyrolysis using random graphs. As before, the files in `src\Random_Graph_Analysis` are summarized in blocks below.
-
-## What's needed to reproduce these results
-
-time-averaging:
-$$N_{\rm HH} = \sum_{j=j_0}^{j_1} N_{\rm HH}^{(j)} (t_{j+1}-t_j)$$
-is the time-averaged number of hydrogen-hydrogen bonds. $j_0$ is a cutoff time where the system is effectively
+Next, we include code for simulating hydrocarbon pyrolysis using random graphs. Most of the code for this section is contained in the `HydrocarbonPyrolysisHelpers.py` file, which contains code for sampling random graphs, analyzing them with generating function, and obtaining their estimated parameters for hydrocarbon pyrolysis using Arrhenius fits. A more detailed outline of this file is given in the first block below. The functions from this file are then loaded at the start of a Jupyter notebook. We provide two Jupyter notebooks for the following purpose
+* `LoopSampling.ipynb`: Sampling loop counts from random graphs to validate they match with MD data. Additionally, measure the impact of loops in random graphs on assortative mixing by degree.
+* `ComponentSizes.ipynb`: Measurement and visualization of the giant component and small component size distribution obtained from random graphs.
 
 
+> #### <u>HydrocarbonPyrolysisHelpers.py</u>
+>
+> Helper functions for simulating hyrdocarbon pyrolysis using random graphs. This file has three main components:
+> 1. #### Code for sampling random graphs for simulating hydrocarbon pyrolysis. 
+>    The class `randHCNet` can be used to generate a random sample of the Disjoint Loop Model (or configuration model) for simulating a hydrocarbon network.
+>    > ``randHCnet(Nc, Nh, phh, p3=0, p4=None, LoopLengths=[])``
+>    > 
+>    > Random hydrocarbon network class. This is used to implement the configuration model and Disjoint Loop Model (with or without Assortativity Correction). If there are not enough degree 2 nodes to construct all the desired loops then the error flag (self.eFlag) will be set to 1, and the random algorithm will need to be rerun. The graph is stored as edge list separated by type.\
+>    > Inputs:
+>    >  * Nc  = # C atoms
+>    >  * Nh  = # H atoms
+>    >  * phh = prob an H atom is bonded to another H atom
+>    >  * p3  = prob a C atom is bonded to 3 atoms, default 0
+>    >  * p4  = prob a C atom, default 1-p3, p3 and p4 are normalized to sum to 1
+>    >  * LoopLengths = List of Lengths of each Loop, default [] corresponding to configuration model
+>    
+>    In practice it is easier to provide the loop rate per carbon atom $\lambda$ and the loop length distribution $\{\phi_k\}$ instead of the randomly sampled loop lengths. The following function is a wrapper that outputs a random hydrocarbon network after sampling loop lengths
+>    > ``randHCnet_from_params(Nc, Nh, phh, p3=0, Lam=None, LoopLenDist=None)``
+>    >
+>    > Wrapper for randHCnet where the loop rate per C atom (Lam) and loop length distribution (LoopLenDist) are used as input instead of sampled loop lengths. 
+>
+>    If there are not enough nodes of degree 2 or higher to sample for loops, then the error flag will be set to 1. If this is the case, a new random network should be sampled. This will be rare if the expected number of nodes with degree 2 or more is greater than the number of nodes needed for loops $$\sum_{k\ge 2}p_k \ge \lambda \sum_{k\ge3}k\phi_k$$
+>
+>
+>    The `randHCnet` class has the `assortativity_correction` method for rewiring carbon-carbon bonds according to the assortativity correction algorithm. This can be implemented as follows
+>    ```
+>      HCN = randHCnet(*params*)
+>      HCN.assortativity_correction(*Num_steps*)
+>    ```
+>    To validate that this removes assortative mixing by degree one can validate the degree assortativity coefficient of the carbon skeleton is small. This is given by `HCN.assort_C`. More atoms and longer assortativity helps to remove assortative mixing by degree.
+>
+>    The methods `HCN.G()` and `HCN.Gc()` output the global hydrocarbon network and carbon skeleton as NetworkX graphs. Other methods are included for computing summary statistics for these graphs which are primarily wrappers of NetworkX functions: 
+>    * `HCN.assort_C` the degree assortativity coefficient of the carbon skeleton
+>    * `HCN.ConnComp_C` connected components of the carbon skeleton
+>    * `HCN.GCC_C` number of nodes in the giant component of the carbon skeleton
+>    * `HCN.CircuitRank` number of independent cycles in the hydrocarbon network
+>    * `HCN.MCB` minimum cycle basis of the carbon skeleton
+>    
+>    The random hydrocarbon simulation class is a wrapper for the more general Disjoint Loop Model function
+>
+>    > ``DisjointLoopModel(degrees,LoopLengths=[],NRewire=0,verbose=False)``
+>    > Random graph model where nodes may participate in a single loop, i.e. loops are disjoint. Remaining edges follow the configuration model.\
+>    > Inputs:
+>    > * degrees = numpy array degree sequence
+>    > * LoopLengths = list lengths of each loop
+>    >
+>    > Output:
+>    > * LEdges = NLx2 numpy array of loop edges,            NL = sum(LoopLengths) = # loop nodes
+>    > * REdges = (m-NL)x2 numpy array of regular edges,     m = sum(degrees)/2 = # edges
+>    > * eFlag  = error flag: 1 if too many loop nodes, 0 otherwise
+>    
+>    The Assortativity Correction algorithm is a wrapper for the more general algorithm for rewiring a set of nodes
+>   
+>    > ``rewire(Edges,degrees,EEdges,NRewire,verbose=False)``    
+>    > Rewire a set of edges to have assortive mixing. Averages near a desired fraction of edges connect nodes of certain degrees. This is simply the algorithm in [Newman, M. E. J. (2002). "Assortative mixing in networks". Physical review letters](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.89.208701).\
+>    > Inputs:\
+>    > * Edges   = list of edges to be rewired (need not be all edges)
+>    > * degrees = degree sequence (or other arbitrary integer property of nodes, if desired)
+>    > * EEdges  = matrix E where E_{ij} = frac. of Edges between node ex. deg i - j (up to a constant)
+>    > * NRewire = # rewire steps
+>    > 
+>    > Output
+>    > * Edges (but rewired to be like EEdges)
+>    
+>    To implement Assortativity Correction, `Edges` should be the regular edges (`REdges`) from the disjoint loop model, `degrees` should be the total degrees of each node (not just from regular edges), and the entries ``EEdges[j,k]`` should match the values $\hat{e}_{j+1,k+1}$ (+1 to convert from excess degree to total degree) from Sec. III C 1.
+>
+> 2. #### Generating function analysis of random graph models. 
+>    Once again, there is a main function for implementing this using the parameters for hydrocarbon pyrolysis
+>    > ``randHCnet_GF(HCR,phh,p3,Lam=None,LoopDist=None,Rewire=False,tol=1e-8)``\
+>    > Analysis of random hydrocarbon graphs using generating functions. To study the configuration model leave the loop parameters at there default values (Lam=None, LoopDist=None). To account for assortativity correction set Rewire=True. \
+>    > Inputs:
+>    > * HCR = hydrogen to carbon ratio (Nc / Nh)
+>    > * phh = prob. H bonds to H
+>    > * p3  = frac. of C nodes deg. 3
+>    > * Lam = loop rate per C atom (#loops/Nc), None by default (configuration model)
+>    > * LoopDist = Loop Length distribution, None by default (configuration model)
+>    > * Rewire   = if assortativity correction is included, False by default
+>    > * tol = tolerance for computing generating functions, default = 1e-8
+>    
+>    This allows us to analyze the carbon skeleton using generating functions. This a wrapper for the more general class for analyzing the Disjoint Loop Model with generating functions.
+>    > ``DisjointLoop_GF(DegDist,f=None,LoopDist=None,rewire=False,tol=1e-8)``
+>    > Class for generating function analysis of the disjoint loop model. Initialization constructs a method for computing for computing the generating function H(x) and degree distribution. Properties of the associated random graph model are obtained using methods of this class. In particular, the small component size distribution is obtained via self.SmallComponents(), the fraction of nodes in the giant component is obtained via self.Giant(), and the degree assortativity coefficient (only non-zero for the Disjoint Loop Model without Assortativity Correction) is given by self.assortativity_coefficient().\
+>    > Inputs:
+>    > * DegDist  = Degree distribution (as a numpy array)
+>    > * LoopDist = Loop length distribution (as a numpy array)
+>    > * rewire   = whether to add assortativity correction
+>    > * tol = numerical tolerance of GF evaluations, default 1e-8
+>
+>    At a base level this class creates code for evaluating the function $H(x)$ which generates the size distribution $\{P_s\}$, where $P_s$ is the probabilty a node belongs to a component with $s$ nodes (carbon atoms). This class is valid for computing properties of three random graph models: the configuration model and the Disjoint Loop Model with and without Assortativity Correction. This analysis is valid in the limit of large graphs. If we set `HCN_GF = randHCnet_GF(...)` then the following properties are available
+>    * `HCN_GF.Giant()`: Fraction of nodes in the giant component $S=1-H(1)$.
+>    * `HCN_GF.SmallComponents(N)`: Small component size distribution $\{\pi_s\}$, where $\pi_s = \frac{P_s/s}{\sum_{s'}P_{s'}/s'}, s=1,...,N$. Values $P_s$ are obtained via the Fast Fourier Transform applied to $H(x)$ on the unit disk. A natural choice is setting $N$ as a power of 2, default $N=2^{10}$. $N$ should not be too small to give a fine enough mesh to compute FFT integrals.
+>    * `HCN_GF.assortativity_coefficient()`: Degree assortativity coefficient (see Sec III C 1). Only nonzero for the Disjoint Loop Model without Assortativity Correction.
+>    * `HCN_GF.threshold_function()`: Threshold function for the giant connected component. Below 1 when the giant component is missing, above 1 when the giant component is present, and equal at the critical threshold.
+> 3. #### Parameter Estimation
+>    Estimated input parameters via Arrhenius fits
+>    * `phh_from_fit(hcr,temp)`: Fraction of hydrogens bonded to hydrogen $p_{\rm HH}$.
+>    * `p3_from_fit(hcr,temp)`: Fraction of carbons bonded to 3 atoms $\bar{p}_3$.
+>    * `loop_from_fit(HCR,Temp,K_max=20)`: Loop rate distribution $\lambda\phi_k, k=0,1,...,K_{\max}$ as a numpy array (zero for $k=0,1,2$ for convenient indexing). To get the total loop rate $\lambda$ one should sum these values over $k$. To get the loop length distribution one should normalize the array by $\lambda$.
 
 
-This Github repository contains the code used for the Disjoint Loop Model with Assortativity Correction used to study hydrocarbon pyrolysis. All code is located in `src/Random_Graphs`. 
-Summary data and random graph sampling data are located in `Data`. To load summary statistics from MD data run the `Load_MD_Data.py` file, which can be added to the header of a notebook as follows
+> `LoopSampling.ipynb`\
+> Follow-up analysis of behavior of generating functions with loop. This is done by computing the following data
+> * Loop rate distribution sampled from MD, Configuration Model (Model 1), and Proposed Model
+> * Degree assortativity coefficient obtained from Model 2 (Disjoint Loop Model without Assortativity Correction). This is also sample from Model 2 and Proposed Model. This is sample averages are printed out to validate that the Disjoint Loop Model has assortative mixing by degree and that Assortativity Correction removes this.
+>
+> This data is saved to a csv `Data/Random_Graphs/Loop_Counts.csv` which can be loaded using code in this notebook. Then code is given for the following plots
+> * Visualizing the loop rate distribution from MD data compared to the configuration model and Proposed Model (Figure 10).
+> * Degree assortativity coefficient given by MD data compared to the Disjoint Loop Model (obtained via generating functions).
 
-``from Load_MD_Data import *``
-
-Code for sampling all random graph models (Configuration Model, Disjoint Loop Model, and Disjoint Loop Model with Assortativity Correction) is located in `HydrocarbonSimulationHelpers.py`. 
-This includes an implementation of random graph sampling and the associated generating function formalisms. To load this data into a notebook add
-
-``from HydrocarbonSimulationHelpers import *`` 
-
-to the header.
-
-Code for validating the Disjoint Loop Model is organized into Jupyter notebooks:
-- `DegreeDistributionAnalysis.ipynb`: Code for fitting the equilibrium constants associated with the degree distribution parameters $\bar{p}\_3$ and $p\_{\rm HH}$ to an Arrhenius law.
-  This also includes validation of the parametric model for the degree distribution of the carbon skeleton.
-- `LoopAnalysis.ipynb`: Code for learning the loop length distribution $\\{\phi_k\\}$ and the loop rate per carbon atom $\lambda$ and comparison to MD data.
-- `LoopSampling.ipynb`: Sampling of the Disjoint Loop Model to verify that it (1) correctly recreates the loop length distribution and (2) induces assortative mixing by degree
-  motivating Assortativity Correction.
-- `ComponentSizes.ipynb`: Measurements of the giant component size and small component size distribution using both sampling and generating functions.
+> `ComponentSizes.ipynb`\
+> Analysis of component sizes computed by sampling random graphs and by generating functions. This code in this notebook is used to do the following:
+> * Obtain statistics about the giant component via sampling and generating functions.
+> * Visualizing results about the giant component
+>   * Compare the size distribution of the giant from MD data, Proposed Model, and Previous Work (Figure 1)
+>   * (a) More detailed comparison of the size distribution of the giant from MD compared to Proposed Model. (b) Comparison of the expected size of the giant component from all models using both methods (Figure 12).
+>   * Additional histograms comparing the size of the giant from MD to Proposed Model (Figure 21 and 22).
+> * Predicted Phase diagram of hydrocarbon pyrolysis from Proposed Model (Figure 14).
+> * Visualizing results about small components
+>   * First, estimate the small molecule size distribution for each model. Obtain the Wasserstein $W_1$ error of these distributions to the true distribution from MD data
+>   * Plot of the small component size distribution of Proposed Model and Previous work compared to MD data. Additionally plot the $W_1$ error of these models (Figure 13).
+>   * Additional plots of the small component size distribution compared to MD data (Figures 23 and 24).
