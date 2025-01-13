@@ -69,18 +69,18 @@ These fits are performed using only $\rm C_4 H_{10}$ data while the remaining da
 > #### <u>DegreeDistributionAnalysis.ipynb</u>
 >
 > Analysis and regression of then degree distribution parameters $p_{\rm HH}$ and $\bar{p}_3$. In order, this notebook provides code for
-> * Visualizing the parametric model of the degree distribution against the time-averaged degree distribution of the carbon skeleton (Figure 8).
+> * Visualizing the parametric model of the degree distribution against the time-averaged degree distribution of the carbon skeleton (Figure 9).
 > * Fitting a regression for the parameter $p_{\rm HH}$ using an Arrhenius law corresponding to a bond-swapping reaction.
 > * Generate a table corresponding to the accuracy of Assumption 2: carbons are bonded to 3 or 4 atoms and hydrogens are bonded to exactly 1 atom.
-> * Plotting $\bar{p}_3$ as a function of temperature for $\rm C_4H_{10}$ to show it increases with temperature (Figure 7), and to visualize that $\bar{p}_3+\bar{p}_4\approx1$ for Assumption 2.
-> * Visualizing the fraction of bonds from degree 3 and degree 4 carbons that are bonded to hydrogens to show they are not equal (Figure 17, right).
+> * Plotting $\bar{p}_3$ as a function of temperature for $\rm C_4H_{10}$ to show it increases with temperature (Figure 8), and to visualize that $\bar{p}_3+\bar{p}_4\approx1$ for Assumption 2.
+> * Visualizing the fraction of bonds from degree 3 and degree 4 carbons that are bonded to hydrogens to show they are not equal (Figure 18, right).
 > * Fitting a regression for the parameter $\bar{p}_3$ using an Arrhenius law corresponding to a bond-dissociation reaction.
-> * Plotting the parameters $p_{\rm HH}$ and $\bar{p}_3$ time-averaged from MD vs their values obtained from equilibrium constants fit to Arrhenius laws (Figure 9). Then the corresponding equilbrium constants $K_{\rm HH}^{\rm eff}$ and $K_{\rm C=C}^{\rm eff}$ are plotted against their fits to Arrhenius laws (Figure 18).
-> * Plot of the $\ell_1$ error of the degree distribution obtained from various models (Figure 17, left).
+> * Plotting the parameters $p_{\rm HH}$ and $\bar{p}_3$ time-averaged from MD vs their values obtained from equilibrium constants fit to Arrhenius laws (Figure 10). Then the corresponding equilbrium constants $K_{\rm HH}^{\rm eff}$ and $K_{\rm C=C}^{\rm eff}$ are plotted against their fits to Arrhenius laws (Figure 19).
+> * Plot of the $\ell_1$ error of the degree distribution obtained from various models (Figure 18, left).
 
 > #### <u>LoopAnalysis.ipynb</u>
 >
-> Analysis and regression for the loop rate per carbon atom $\lambda$ and the loop length distribution $\{\phi_k\}$. First, this notebook is used to fit the equilbrium constants $K_{\ell}^{\rm eff}$ for loops of length $\ell=3,4,...,8$ and the tail equilibrium constant $K_L^{\rm eff}$, associated with the reactions defined in Appendix D. These reaction rates are also plotted against their Arrhenius fits as in Figure 19. Following this, the loop length distribution is plotted against its fit values and saved in `Figures/Loops/ReaxResults`. Last, code is provided for a summary figure (Figure 20) for (a) comparing the loop length distribution to MD data initialized $\rm C_4H_{10}$ at 3600K and $\rm C_8H_{18}$ at 4000K, (b) Wasserstein error of the loop length distribution, and (c) comparison of the loop rate per carbon $\lambda$ from Arrhenius fits vs. MD data.
+> Analysis and regression for the loop rate per carbon atom $\lambda$ and the loop length distribution $\{\phi_k\}$. First, this notebook is used to fit the equilbrium constants $K_{\ell}^{\rm eff}$ for loops of length $\ell=3,4,...,8$ and the tail equilibrium constant $K_L^{\rm eff}$, associated with the reactions defined in Appendix D. These reaction rates are also plotted against their Arrhenius fits as in Figure 20. Following this, the loop length distribution is plotted against its fit values and saved in `Figures/Loops/ReaxResults`. Last, code is provided for a summary figure (Figure 21) for (a) comparing the loop length distribution to MD data initialized $\rm C_4H_{10}$ at 3600K and $\rm C_8H_{18}$ at 4000K, (b) Wasserstein error of the loop length distribution, and (c) comparison of the loop rate per carbon $\lambda$ from Arrhenius fits vs. MD data.
 
 
 ## 2. Random Graph Analysis With the Disjoint Loop Model
@@ -196,7 +196,7 @@ Next, we include code for simulating hydrocarbon pyrolysis using random graphs. 
 > * Degree assortativity coefficient obtained from Model 2 (Disjoint Loop Model without Assortativity Correction). This is also sample from Model 2 and Proposed Model. This is sample averages are printed out to validate that the Disjoint Loop Model has assortative mixing by degree and that Assortativity Correction removes this.
 >
 > This data is saved to a csv `Data/Random_Graphs/Loop_Counts.csv` which can be loaded using code in this notebook. Then code is given for the following plots
-> * Visualizing the loop rate distribution from MD data compared to the configuration model and Proposed Model (Figure 10).
+> * Visualizing the loop rate distribution from MD data compared to the configuration model and Proposed Model (Figure 11).
 > * Degree assortativity coefficient given by MD data compared to the Disjoint Loop Model (obtained via generating functions).
 
 > `ComponentSizes.ipynb`\
@@ -205,8 +205,8 @@ Next, we include code for simulating hydrocarbon pyrolysis using random graphs. 
 > * Visualizing results about the giant component
 >   * Compare the size distribution of the giant from MD data, Proposed Model, and Previous Work (Figure 1)
 >   * (a) More detailed comparison of the size distribution of the giant from MD compared to Proposed Model. (b) Comparison of the expected size of the giant component from all models using both methods (Figure 12).
->   * Additional histograms comparing the size of the giant from MD to Proposed Model (Figure 21 and 22).
-> * Predicted Phase diagram of hydrocarbon pyrolysis from Proposed Model (Figure 14).
+>   * Additional histograms comparing the size of the giant from MD to Proposed Model (Figure 22 and 23).
+> * Predicted Phase diagram of hydrocarbon pyrolysis from Proposed Model (Figure 15).
 > * Visualizing results about small components
 >   * First, estimate the small molecule size distribution for each model. Obtain the Wasserstein $W_1$ error of these distributions to the true distribution from MD data
 >   * Plot of the small component size distribution of Proposed Model and Previous work compared to MD data. Additionally plot the $W_1$ error of these models (Figure 13).
